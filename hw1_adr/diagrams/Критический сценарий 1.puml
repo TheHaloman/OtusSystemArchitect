@@ -1,0 +1,81 @@
+@startuml взрывная нагрузка
+
+
+title критический кейс №1: взрывная нагрузка
+
+
+autonumber
+
+
+actor "Пользователи" as Users
+participant "CDN" as CDN
+participant "Load Balancer" as LB
+
+
+box "Автомасштабируемая группа App" #Ivory
+   participant "App Instance" as App
+   database "in-memory cache" as L1
+end box
+
+
+collections "L2 cache\n(Redis Cluster)" as L2
+database "Database" as DB
+
+
+Users -> CDN: Взрывной трафик (Search plans)
+activate CDN
+
+
+alt Отработала защита на крае
+   CDN -> Users: Ответ из кэша
+else промах CDN
+   CDN -> LB: Запрос (если промах в кеше CDN)
+   activate LB
+
+
+   LB -> App: Пересылка запроса на свободный узел
+   activate App
+
+
+   App -> L1: запрос по plan_id
+   activate L1
+
+
+   alt L1 Hit
+       L1 -> App: данные из кэша
+   else L1 Miss
+       App <- L1: null
+       deactivate L1
+      
+       App -> L2: запрос по plan_id
+       activate L2
+      
+       alt L2 Hit
+           App <- L2: данные из кэша
+           App -> L1: прогрев L1
+       else L2 Miss
+           App <- L2: null
+           deactivate L2
+          
+           App -> DB: Select * FROM plans...
+           activate DB
+           App <- DB: Result
+           deactivate DB
+           App -> L1: прогрев кэша
+           App -> L2: прогрев кэша
+       end
+   end
+
+
+   LB <- App: HTTP 200 OK
+   deactivate App
+   CDN <- LB: Response
+   deactivate LB
+   Users <- CDN: Отрисовка страницы
+   deactivate CDN
+
+
+end
+
+
+@enduml

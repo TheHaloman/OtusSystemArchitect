@@ -1,0 +1,66 @@
+@startuml external vendor fault
+
+
+title Критический сценарий отказа внешней системы бронирования
+
+
+participant "API Gateway" as Gateway
+participant "Trip Service" as Service
+participant "Circuit Breaker" as CB
+database "DB & Cache" as DB
+participant "External Vendor API" as Vendor
+
+
+== Нормальная работа (Happy Path) ==
+
+
+Gateway -> Service: GET /trips/{id}
+activate Service
+
+
+Service -> CB: call(vendor_id)
+activate CB
+CB -> Vendor: API Request
+activate Vendor
+Vendor --[#green]> CB: 200 OK (Fresh Data)
+deactivate Vendor
+CB --[#green]> Service: Fresh Data
+deactivate CB
+
+
+Service -> DB: Update Stale Cache (JSONB)
+Service --> Gateway: 200 OK (Data, IsFresh: true)
+
+
+== Обработка сбоя (Error Handling / Fallback) ==
+
+
+Gateway -> Service: GET /trips/{id}
+alt Circuit Breaker CLOSED (Первый сбой)
+   Service -> CB: call(vendor_id)
+   activate CB
+   CB -> Vendor: API Request
+   activate Vendor
+   Vendor --[#red]> CB: Timeout / 5xx Error
+   deactivate Vendor
+   CB --[#red]> Service: Exception
+   deactivate CB
+else Circuit Breaker OPEN (Последующие запросы)
+   Service -> CB: call(vendor_id)
+   activate CB
+   CB --[#red]> Service: Fast Fail (Exception)
+   deactivate CB
+end
+
+
+Service -> DB: Fetch Last Successful Data
+activate DB
+DB --> Service: Stale Data + Timestamp
+deactivate DB
+
+
+Service --> Gateway: 200 OK (Stale Data, IsFresh: false)
+deactivate Service
+
+
+@enduml
