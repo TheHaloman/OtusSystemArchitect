@@ -1,0 +1,46 @@
+@startuml TheRoadWarrior
+
+
+title TheRoadWarrior C4 contex level
+
+
+!include <C4/C4_Context>
+
+
+SHOW_PERSON_PORTRAIT()
+
+
+Person(client, "Клиент")
+Person(manager, "Менеджер")
+
+
+
+
+Enterprise_Boundary(internal, "Внутренний контур компании"){
+   System(panel, "Единый кабинет путешественника", "Предоставляет бесшовный опыт бронирования услуг путешествий")
+   System_Ext(adapters, "Существующие системы бронирования", "Предоставляют функции бронирования авиабилетов/отелей/автомобилей")
+   System_Ext(proccessing, "Процессинг", "Предоставляет функции оплаты услуг, хранит данные клиентов и транзакций")
+   System_Ext(email, "Внутренняя система email", "Обеспечивает взаимодействие с почтовыми службами")
+}
+
+
+System_Ext(external_providers, "Поставщики услуг", "Внешние поставщики услуг бронирования авиабилетов, гостиници автомобилей")
+System_Ext(social, "Социальные сети", "Публикация пушествий, продвижение")
+
+
+
+
+Rel(client, panel, "Подбирает предложения, формирует путешествия, оплачивает")
+Rel(manager, panel, "Управляет предложениями, получает аналитику")
+Rel_R(panel, adapters, "Использует API для бронирования авиа-билетов")
+Rel_L(panel, proccessing, "Использует API оплат")
+Rel_L(panel, email, "Использует API для отправки email")
+
+
+Rel(adapters, external_providers, "Используют API для бронирований")
+Rel(panel, social, "Публикация постов")
+
+
+
+
+@enduml
